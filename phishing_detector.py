@@ -87,8 +87,8 @@ class EmailPhishingDetector:
     def check_spf(self) -> CheckResult:
         # Controlla la validità SPF
         result = CheckResult("SPF Validation", 0, 30)
-        received_spf = self.message.get('Received-SPF', '')
-        auth_results = self.message.get('Authentication-Results', '')
+        received_spf = self.message.get('Received-SPF', '').lower()
+        auth_results = self.message.get('Authentication-Results', '').lower()
         
         if not received_spf and 'spf=' not in auth_results:
             result.add_reason("Record SPF non trovato negli header", 10)
@@ -104,11 +104,44 @@ class EmailPhishingDetector:
             result.add_reason("SPF non verificabile, è consigliato un controllo manuale con altro tool dedicato", 5)
         return result
 
+    def check_dkim(self) -> CheckResult:
+        # Controlla la firma DKIM
+        result = CheckResult("DKIM Signature", 0, 25)
+        auth_results = self.message.get('Authentication-Results', '').lower()
+        dkim_signature = self.message.get('DKIM-Signature', '')
+        
+        if not dkim_signature and 'dkim=' not in auth_results:
+            result.add_reason("Firma DKIM assente", 15)
+        elif 'dkim=fail' in auth_results:
+            result.add_reason("DKIM FAIL - Firma non valida", 25)
+        elif 'dkim=pass' in auth_results:
+            result.add_reason("DKIM PASS - Firma valida", 0)
+        else:
+            result.add_reason("DKIM presente ma non verificabile", 10)
+        
+        return result
+
+    def check_dmarc(self) -> CheckResult:
+        # Controlla la policy DMARC
+        result = CheckResult("DMARC Policy", 0, 25)
+        
+        auth_results = self.message.get('Authentication-Results', '').lower()
+        
+        if 'dmarc=' not in auth_results:
+            result.add_reason("Risultato DMARC non trovato", 15)
+        elif 'dmarc=fail' in auth_results:
+            result.add_reason("DMARC FAIL - Policy non rispettata", 25)
+        elif 'dmarc=pass' in auth_results:
+            result.add_reason("DMARC PASS - Policy rispettata", 0)
+        else:
+            result.add_reason("DMARC non verificabile", 10)
+        
+        return result
+
     
     def analyze(self):
         # Esegue tutti i controlli uno dopo l'altro TODO
         
-           
               
         if not self.load_email():
             return
@@ -122,7 +155,9 @@ class EmailPhishingDetector:
         print(f" Date: {self.message.get('Date', 'N/A')}\n")
         
         # Esegue i controlli TODO
-        
+        self.results.append(self.check_spf())
+        self.results.append(self.check_dkim())
+        self.results.append(self.check_dmarc())
         
         # Mostra risultati TODO
 
