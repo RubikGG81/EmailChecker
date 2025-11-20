@@ -57,12 +57,12 @@ class EmailPhishingDetector:
             return False
     
     def _extract_email(self, header: str) -> str:
-        #Estrae l'indirizzo email dall'header
+        # Estrae l'indirizzo email dall'header
         match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', header)
         return match.group(0) if match else ''
     
     def _get_body_text(self) -> str:
-        #Estrae il testo dal body dell'email
+        # Estrae il testo dal body dell'email
         body = ""
         if self.message.is_multipart():
             for part in self.message.walk():
@@ -80,13 +80,35 @@ class EmailPhishingDetector:
         return re.findall(url_pattern, text)
     
     def _is_ip_address(self, hostname: str) -> bool:
-        #Verifica se l'hostname è un indirizzo IP raw
+        # Verifica se l'hostname è un indirizzo IP raw
         ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
         return bool(re.match(ip_pattern, hostname))
     
-    def analyze(self):
-        # Esegue tutti i controlli uno dopo l'altro
+    def check_spf(self) -> CheckResult:
+        # Controlla la validità SPF
+        result = CheckResult("SPF Validation", 0, 30)
+        received_spf = self.message.get('Received-SPF', '')
+        auth_results = self.message.get('Authentication-Results', '')
         
+        if not received_spf and 'spf=' not in auth_results:
+            result.add_reason("Record SPF non trovato negli header", 10)
+        elif 'fail' in received_spf or 'spf=fail' in auth_results:
+            result.add_reason("SPF FAIL - Il mittente non è autorizzato", 30)
+        elif 'softfail' in received_spf or 'spf=softfail' in auth_results:
+            result.add_reason("SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
+        elif 'neutral' in received_spf or 'spf=neutral' in auth_results:
+            result.add_reason("SPF NEUTRAL - Nessuna politica definita", 15)
+        elif 'pass' in received_spf or 'spf=pass' in auth_results:
+            result.add_reason("SPF PASS - Mittente autorizzato", 0)
+        else:
+            result.add_reason("SPF non verificabile, è consigliato un controllo manuale con altro tool dedicato", 5)
+        return result
+
+    
+    def analyze(self):
+        # Esegue tutti i controlli uno dopo l'altro TODO
+        
+           
               
         if not self.load_email():
             return
@@ -101,12 +123,8 @@ class EmailPhishingDetector:
         
         # Esegue i controlli TODO
         
-
-
         
         # Mostra risultati TODO
-
-
 
 
     
