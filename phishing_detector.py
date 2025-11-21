@@ -142,6 +142,13 @@ class EmailPhishingDetector:
         
         return result
 
+    def check_reply_to_mismatch(self) -> CheckResult:
+        # Controlla un eventuale mismatch tra From e Reply-To
+        result = CheckResult("Reply-To Mismatch", 0, 20)
+        # Implementare controllo reply_to TODO
+        return result
+
+
 
     def check_suspicious_content(self) -> CheckResult:
         #Tenta una sorta di analisi euristica del contenuto valutando le  parole sospette
@@ -208,12 +215,16 @@ class EmailPhishingDetector:
         
         return result
 
+    def check_suspicious_links(self) -> CheckResult:   #TODO
+        # Analizza i link sospetti nel body
+        result = CheckResult("Suspicious Links", 0, 50)
+        # Implementare controllo link sospetti TODO
+        return result
 
 
 
     def analyze(self):
         # Eseguiamo tutti i controlli uno dopo l'altro TODO
-              
         if not self.load_email():
             return
         
@@ -229,12 +240,15 @@ class EmailPhishingDetector:
         self.results.append(self.check_spf())
         self.results.append(self.check_dkim())
         self.results.append(self.check_dmarc())
+        self.results.append(self.check_reply_to_mismatch())
+        self.results.append(self.check_suspicious_content())
         self.results.append(self.check_suspicious_links())
+        self.results.append(self.check_dangerous_attachments())
+
         
         # Mostra risultati TODO
 
 
-    
     def _print_results(self):
         # Stampa i risultati dell'analisi
         print("="*70)
