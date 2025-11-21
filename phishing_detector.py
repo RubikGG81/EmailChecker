@@ -6,6 +6,7 @@ import re
 from email import policy
 from email.parser import BytesParser
 from urllib.parse import urlparse
+import os
 
 
 @dataclass
@@ -336,8 +337,19 @@ class EmailPhishingDetector:
                Chiunque prenderà decisioni critiche basandosi sui risultati di questo script 
                lo farà a proprio rischio e pericolo.""")
         print("*"*100)
+        
+        # Pausa per leggere il disclaimer
+        user_input = input("\n🔑 Premere SOLO INVIO per ACCETTARE e continuare con l'analisi (qualsiasi altro tasto seguito da INVIO per RIFIUTARE E TERMINARE LO SCRIPT): ")
+        
+        # Controlla se l'utente ha accettato il disclaimer
+        if user_input.strip() != "":
+            print("\n❌ Disclaimer NON accettato. Programma terminato.")
+            print("👋 Arrivederci!")
+            return
+        
+        # Pulisce lo schermo dopo l'accettazione del disclaimer
+        os.system('cls' if os.name == 'nt' else 'clear')
 
-       
         # Eseguiamo tutti i controlli uno dopo l'altro
         if not self.load_email():
             return
