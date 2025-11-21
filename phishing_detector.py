@@ -5,6 +5,7 @@ from typing import List
 import re
 from email import policy
 from email.parser import BytesParser
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -255,16 +256,67 @@ class EmailPhishingDetector:
         return result
 
 
-    def check_suspicious_links(self) -> CheckResult:   #TODO
+    def check_suspicious_links(self) -> CheckResult:
         # Analizza i link sospetti nel body
         result = CheckResult("Suspicious Links", 0, 50)
-        # Implementare controllo link sospetti TODO
+        # Controllo link sospetti
+        body_text = self._get_body_text()
+        links = self._extract_links(body_text)
+        
+        from_email = self._extract_email(self.message.get('From', ''))
+        sender_domain = from_email.split('@')[-1].lower() if from_email else ''
+        
+        raw_ip_links = 0
+        punycode_links = 0
+        mismatched_domains = 0
+        
+        for link in links:
+            parsed = urlparse(link)
+            
+            # Check per IP raw
+            if self._is_ip_address(parsed.netloc):
+                raw_ip_links += 1
+            
+            # Check per punycode
+            if 'xn--' in parsed.netloc:
+                punycode_links += 1
+            
+            # Check mismatch dominio
+            link_domain = parsed.netloc.lower()
+            if sender_domain and sender_domain not in link_domain:
+                mismatched_domains += 1
+        
+        if raw_ip_links > 0:
+            result.add_reason(
+                f"🚨 {raw_ip_links} link con indirizzo IP raw (molto sospetto)",
+                20
+            )
+        
+        if punycode_links > 0:
+            result.add_reason(
+                f"⚠️ {punycode_links} link in Punycode (possibile IDN spoofing)",
+                15
+            )
+        
+        if mismatched_domains > 0 and sender_domain:
+            ratio = mismatched_domains / len(links)
+            if ratio > 0.8:
+                result.add_reason(
+                    f"🚨 {mismatched_domains}/{len(links)} link puntano a domini diversi dal mittente",
+                    15
+                )
+            elif ratio > 0.5:
+                result.add_reason(
+                    f"⚠️ {mismatched_domains}/{len(links)} link puntano a domini esterni",
+                    10
+                )
+        
         return result
 
 
 
     def analyze(self):
-        # Eseguiamo tutti i controlli uno dopo l'altro TODO
+        # Eseguiamo tutti i controlli uno dopo l'altro
         if not self.load_email():
             return
         
@@ -336,8 +388,7 @@ class EmailPhishingDetector:
         print(f"🚦 Livello di Rischio: {risk_level}")
         print(f"⚖️  Verdetto: {verdict}")
         print("\n" + "="*70 + "\n")
-
-         
+  
 
 def main():
     parser = argparse.ArgumentParser(
