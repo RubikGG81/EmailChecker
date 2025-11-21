@@ -285,9 +285,14 @@ class EmailPhishingDetector:
         self.results.append(self.check_suspicious_links())
         self.results.append(self.check_dangerous_attachments())
 
+        # Calcola score totale
+        for result in self.results:
+            self.total_score += result.score
+            self.max_total_score += result.max_score
         
-        # Mostra risultati TODO
-
+        
+        # Mostra risultati
+        self._print_results()
 
     def _print_results(self):
         # Stampa i risultati dell'analisi
@@ -296,14 +301,43 @@ class EmailPhishingDetector:
         print("="*70 + "\n")
         
         for result in self.results:
-            print(f" {result.check_name}")
-            print(f" Score: {result.score}/{result.max_score}")
+            print(f"🔸 {result.check_name}")
+            print(f"   Score: {result.score}/{result.max_score}")
             for reason in result.reasons:
                 print(f"   {reason}")
             print()
         
-        # Aggiungere Calcolo Score finale  TODO 
+        # Aggiungere Calcolo Score finale
 
+        print("="*70)
+        print("🎯 VALUTAZIONE FINALE")
+        print("="*70)
+        print(f"\n⚡ Score Totale: {self.total_score}/{self.max_total_score}")
+        
+        percentage = (self.total_score / self.max_total_score * 100) if self.max_total_score > 0 else 0
+        
+        if percentage >= 70:
+            risk_level = "🔴 RISCHIO MOLTO ALTO"
+            verdict = "PHISHING MOLTO PROBABILE - ELIMINA IMMEDIATAMENTE e/o UTILIZZA UN SOFTWARE DEDICATO PER CONFERMA"
+        elif percentage >= 50:
+            risk_level = "🟠 RISCHIO ALTO"
+            verdict = "PHISHING PROBABILE - ESTREMA CAUTELA"
+        elif percentage >= 30:
+            risk_level = "🟡 RISCHIO MEDIO"
+            verdict = "EMAIL SOSPETTA - VERIFICARE ATTENTAMENTE"
+        elif percentage >= 15:
+            risk_level = "🟢 RISCHIO BASSO"
+            verdict = "Email probabilmente legittima ma con qualche anomalia, è raccomandato l'uso del cervello"
+        else:
+            risk_level = "✅ RISCHIO MINIMO"
+            verdict = "L'email sembra legittima (ma ricordati che lo script non è infallibile...)"
+        
+        print(f"📈 Percentuale: {percentage:.1f}%")
+        print(f"🚦 Livello di Rischio: {risk_level}")
+        print(f"⚖️  Verdetto: {verdict}")
+        print("\n" + "="*70 + "\n")
+
+         
 
 def main():
     parser = argparse.ArgumentParser(
