@@ -21,6 +21,10 @@ class CheckResult:
 class EmailPhishingDetector:
     # Analizzatore di email per rilevamento phishing
     
+    # Come rifinitura creare func x aggiungere/rimuovere elementi TODO 
+    # dal set e della lista e creare un menu guidato di selezione rapida di queste func ed altre opzioni utili TODO
+    
+    
     # Estensioni da considerare come pericolose
     DANGEROUS_EXTENSIONS = {
         '.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js',
@@ -175,6 +179,36 @@ class EmailPhishingDetector:
             result.add_reason("Senso di urgenza eccessivo nel messaggio", 10)
         
         return result
+
+
+    def check_dangerous_attachments(self) -> CheckResult:
+        # Controlla allegati pericolosi andando a verificare le estensioni piu pericolose
+        result = CheckResult("Dangerous Attachments", 0, 40)
+        
+        dangerousfound = []
+        for part in self.message.walk():
+            filename = part.get_filename()
+            if filename:
+                file_ext = Path(filename).suffix.lower()
+                if file_ext in self.DANGEROUS_EXTENSIONS:
+                    dangerousfound.append(filename)
+        if dangerousfound:
+            result.add_reason(
+                f"{len(dangerousfound)} allegati pericolosi trovati: {', '.join(dangerousfound)}",
+                20 * len(dangerousfound)
+            )
+        else:
+            has_attachments = any(
+                part.get_filename() for part in self.message.walk()
+            )
+            if has_attachments:
+                result.add_reason("✓ Allegati presenti ma non pericolosi", 0)
+            else:
+                result.add_reason("ℹ️ Nessun allegato presente", 0)
+        
+        return result
+
+
 
 
     def analyze(self):
