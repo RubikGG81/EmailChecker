@@ -145,7 +145,30 @@ class EmailPhishingDetector:
     def check_reply_to_mismatch(self) -> CheckResult:
         # Controlla un eventuale mismatch tra From e Reply-To
         result = CheckResult("Reply-To Mismatch", 0, 20)
-        # Implementare controllo reply_to TODO
+        
+        from_header = self.message.get('From', '')
+        reply_to = self.message.get('Reply-To', '')
+        
+        if not reply_to:
+            result.add_reason("ℹ️ Reply-To non presente (normale)", 0)
+            return result
+        
+        # Estrae ind. email da From e Reply-To
+        from_email = self._extract_email(from_header)
+        reply_email = self._extract_email(reply_to)
+        
+        if from_email and reply_email:
+            from_domain = from_email.split('@')[-1].lower()
+            reply_domain = reply_email.split('@')[-1].lower()
+            
+            if from_domain != reply_domain:
+                result.add_reason(
+                    f"MISMATCH Reply-To: From={from_domain}, Reply-To={reply_domain}",
+                    20
+                )
+            else:
+                result.add_reason("✓ Reply-To corrisponde al mittente", 0)
+
         return result
 
 
@@ -157,24 +180,24 @@ class EmailPhishingDetector:
         body_text = self._get_body_text().lower()
         full_text = f"{subject} {body_text}"
         
-        found_keywords = []
+        foundkeywords = []
         for keyword in self.SUSPICIOUS_KEYWORDS:
             if keyword in full_text:
-                found_keywords.append(keyword)
+                foundkeywords.append(keyword)
         
-        if len(found_keywords) >= 5:
+        if len(foundkeywords) >= 5:
             result.add_reason(
-                f"{len(found_keywords)} parole sospette trovate, un pò troppe (phishing probabile)",
+                f"{len(foundkeywords)} parole sospette trovate, un pò troppe (phishing probabile)",
                 30
             )
-        elif len(found_keywords) >= 3:
+        elif len(foundkeywords) >= 3:
             result.add_reason(
-                f"{len(found_keywords)} parole sospette trovate: {', '.join(found_keywords[:5])}",
+                f"{len(foundkeywords)} parole sospette trovate: {', '.join(foundkeywords[:5])}",
                 20
             )
-        elif len(found_keywords) >= 1:
+        elif len(foundkeywords) >= 1:
             result.add_reason(
-                f"Alcune parole sospette: {', '.join(found_keywords)}",
+                f"Alcune parole sospette: {', '.join(foundkeywords)}",
                 10
             )
         else:
@@ -209,9 +232,9 @@ class EmailPhishingDetector:
                 part.get_filename() for part in self.message.walk()
             )
             if has_attachments:
-                result.add_reason("✓ Allegati presenti ma non pericolosi", 0)
+                result.add_reason("Allegati presenti ma non pericolosi", 0)
             else:
-                result.add_reason("ℹ️ Nessun allegato presente", 0)
+                result.add_reason("Nessun allegato presente", 0)
         
         return result
 
@@ -236,7 +259,7 @@ class EmailPhishingDetector:
         print(f" From: {self.message.get('From', 'N/A')}")
         print(f" Date: {self.message.get('Date', 'N/A')}\n")
         
-        # Esegue i controlli TODO
+        # Esegue i controlli
         self.results.append(self.check_spf())
         self.results.append(self.check_dkim())
         self.results.append(self.check_dmarc())
@@ -256,8 +279,8 @@ class EmailPhishingDetector:
         print("="*70 + "\n")
         
         for result in self.results:
-            print(f"🔸 {result.check_name}")
-            print(f"   Score: {result.score}/{result.max_score}")
+            print(f" {result.check_name}")
+            print(f" Score: {result.score}/{result.max_score}")
             for reason in result.reasons:
                 print(f"   {reason}")
             print()
