@@ -2,6 +2,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import argparse
 from typing import List
+import re
+from email import policy
+from email.parser import BytesParser
 
 
 @dataclass
@@ -33,17 +36,18 @@ class EmailPhishingDetector:
     }
 
     
-    # Parole aa considerare come sospette in ita e eng
+    # Parole aa considerare come sospette in eng e ita
     SUSPICIOUS_KEYWORDS = [
-        'urgente', 'immediato', 'verifica',
-        'sospeso', 'account', 'password', 'conferma',
-        'clicca qui', 'aggiorna',
-        'sicurezza', 'allerta', 'avviso',
-        'scadenza', 'vincitore', 'premio',
-        'banca', 'tasse', 'rimborso',
-        'fattura', 'pagamento', 'consegna',
-        'azione richiesta', 'non autorizzato', 'accesso'
+        'urgent', 'urgente', 'immediate', 'immediato', 'verify', 'verifica',
+        'suspend', 'sospeso', 'account', 'password', 'confirm', 'conferma',
+        'click here', 'clicca qui', 'update', 'aggiorna', 'security',
+        'sicurezza', 'alert', 'allerta', 'warning', 'avviso', 'expire',
+        'scadenza', 'winner', 'vincitore', 'prize', 'premio', 'bank',
+        'banca', 'tax', 'tasse', 'refund', 'rimborso', 'invoice',
+        'fattura', 'payment', 'pagamento', 'deliver', 'consegna',
+        'action required', 'azione richiesta', 'unauthorized', 'non autorizzato'
     ]
+
     
     def __init__(self, eml_path: str):
         self.eml_path = Path(eml_path)
@@ -59,7 +63,7 @@ class EmailPhishingDetector:
                 self.message = BytesParser(policy=policy.default).parse(f)
             return True
         except Exception as e:
-            print(f"Errore nel caricamento del file: {e}")
+            print(f"❌❌ Errore nel caricamento del file ❌❌: {e}")
             return False
     
     def _extract_email(self, header: str) -> str:
@@ -216,7 +220,7 @@ class EmailPhishingDetector:
         urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso']
         urgency_count = sum(1 for word in urgency_words if word in full_text)
         if urgency_count >= 3:
-            result.add_reason("⚠️ Senso di urgenza eccessivo nel messaggio", 10)
+            result.add_reason("⚠️ Senso di urgenza valutato come eccessivo nel messaggio", 10)
         
         return result
 
@@ -226,15 +230,17 @@ class EmailPhishingDetector:
         result = CheckResult("Dangerous Attachments", 0, 40)
         
         dangerousfound = []
+        
         for part in self.message.walk():
             filename = part.get_filename()
             if filename:
                 file_ext = Path(filename).suffix.lower()
                 if file_ext in self.DANGEROUS_EXTENSIONS:
                     dangerousfound.append(filename)
+        
         if dangerousfound:
             result.add_reason(
-                f"{len(dangerousfound)} allegati pericolosi trovati: {', '.join(dangerousfound)}",
+                f"🚨 {len(dangerousfound)} allegati pericolosi trovati: {', '.join(dangerousfound)}",
                 20 * len(dangerousfound)
             )
         else:
@@ -242,11 +248,12 @@ class EmailPhishingDetector:
                 part.get_filename() for part in self.message.walk()
             )
             if has_attachments:
-                result.add_reason("Allegati presenti ma non pericolosi", 0)
+                result.add_reason("✓ Allegati presenti ma non pericolosi", 0)
             else:
-                result.add_reason("Nessun allegato presente", 0)
+                result.add_reason("ℹ️ Nessun allegato presente", 0)
         
         return result
+
 
     def check_suspicious_links(self) -> CheckResult:   #TODO
         # Analizza i link sospetti nel body
