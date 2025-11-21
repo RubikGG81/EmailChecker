@@ -28,10 +28,12 @@ class EmailPhishingDetector:
     # Estensioni da considerare come pericolose
     DANGEROUS_EXTENSIONS = {
         '.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js',
-        '.jar', '.zip', '.rar', '.dll', '.reg', '.lnk'
+        '.jar', '.zip', '.rar', '.iso', '.msi', '.dll', '.hta', '.reg',
+        '.ps1', '.psm1', '.lnk', '.docm', '.xlsm', '.pptm'
     }
+
     
-    # Parole aa considerare come sospette
+    # Parole aa considerare come sospette in ita e eng
     SUSPICIOUS_KEYWORDS = [
         'urgente', 'immediato', 'verifica',
         'sospeso', 'account', 'password', 'conferma',
