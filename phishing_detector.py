@@ -89,41 +89,46 @@ class EmailPhishingDetector:
         return bool(re.match(ip_pattern, hostname))
     
     def check_spf(self) -> CheckResult:
-        # Controlla la validità SPF
+        # Controlla la validità SPF"""
         result = CheckResult("SPF Validation", 0, 30)
+        
         received_spf = self.message.get('Received-SPF', '').lower()
         auth_results = self.message.get('Authentication-Results', '').lower()
         
         if not received_spf and 'spf=' not in auth_results:
-            result.add_reason("Record SPF non trovato negli header", 10)
+            result.add_reason("⚠️ Record SPF non trovato negli header", 10)
         elif 'fail' in received_spf or 'spf=fail' in auth_results:
-            result.add_reason("SPF FAIL - Il mittente non è autorizzato", 30)
+            result.add_reason("🚨 SPF FAIL - Il mittente non è autorizzato", 30)
         elif 'softfail' in received_spf or 'spf=softfail' in auth_results:
-            result.add_reason("SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
+            result.add_reason("⚠️ SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
         elif 'neutral' in received_spf or 'spf=neutral' in auth_results:
-            result.add_reason("SPF NEUTRAL - Nessuna politica definita", 15)
+            result.add_reason("⚠️ SPF NEUTRAL - Nessuna politica definita", 15)
         elif 'pass' in received_spf or 'spf=pass' in auth_results:
-            result.add_reason("SPF PASS - Mittente autorizzato", 0)
+            result.add_reason("✓ SPF PASS - Mittente autorizzato", 0)
         else:
-            result.add_reason("SPF non verificabile, è consigliato un controllo manuale con altro tool dedicato", 5)
+            result.add_reason("⚠️ SPF non verificabile,è consigliato un controllo manuale con altro tool dedicato", 5)
+        
         return result
+
 
     def check_dkim(self) -> CheckResult:
         # Controlla la firma DKIM
         result = CheckResult("DKIM Signature", 0, 25)
+        
         auth_results = self.message.get('Authentication-Results', '').lower()
         dkim_signature = self.message.get('DKIM-Signature', '')
         
         if not dkim_signature and 'dkim=' not in auth_results:
-            result.add_reason("Firma DKIM assente", 15)
+            result.add_reason("⚠️ Firma DKIM assente", 15)
         elif 'dkim=fail' in auth_results:
-            result.add_reason("DKIM FAIL - Firma non valida", 25)
+            result.add_reason("🚨 DKIM FAIL - Firma non valida", 25)
         elif 'dkim=pass' in auth_results:
-            result.add_reason("DKIM PASS - Firma valida", 0)
+            result.add_reason("✓ DKIM PASS - Firma valida", 0)
         else:
-            result.add_reason("DKIM presente ma non verificabile", 10)
+            result.add_reason("⚠️ DKIM presente ma non verificabile", 10)
         
         return result
+
 
     def check_dmarc(self) -> CheckResult:
         # Controlla la policy DMARC
@@ -132,15 +137,16 @@ class EmailPhishingDetector:
         auth_results = self.message.get('Authentication-Results', '').lower()
         
         if 'dmarc=' not in auth_results:
-            result.add_reason("Risultato DMARC non trovato", 15)
+            result.add_reason("⚠️ Risultato DMARC non trovato", 15)
         elif 'dmarc=fail' in auth_results:
-            result.add_reason("DMARC FAIL - Policy non rispettata", 25)
+            result.add_reason("🚨 DMARC FAIL - Policy non rispettata", 25)
         elif 'dmarc=pass' in auth_results:
-            result.add_reason("DMARC PASS - Policy rispettata", 0)
+            result.add_reason("✓ DMARC PASS - Policy rispettata", 0)
         else:
-            result.add_reason("DMARC non verificabile", 10)
+            result.add_reason("⚠️ DMARC non verificabile", 10)
         
         return result
+
 
     def check_reply_to_mismatch(self) -> CheckResult:
         # Controlla un eventuale mismatch tra From e Reply-To
@@ -153,7 +159,7 @@ class EmailPhishingDetector:
             result.add_reason("ℹ️ Reply-To non presente (normale)", 0)
             return result
         
-        # Estrae ind. email da From e Reply-To
+        # Estrai email da From e Reply-To
         from_email = self._extract_email(from_header)
         reply_email = self._extract_email(reply_to)
         
@@ -163,12 +169,12 @@ class EmailPhishingDetector:
             
             if from_domain != reply_domain:
                 result.add_reason(
-                    f"MISMATCH Reply-To: From={from_domain}, Reply-To={reply_domain}",
+                    f"🚨 MISMATCH Reply-To: From={from_domain}, Reply-To={reply_domain}",
                     20
                 )
             else:
                 result.add_reason("✓ Reply-To corrisponde al mittente", 0)
-
+        
         return result
 
 
@@ -176,37 +182,39 @@ class EmailPhishingDetector:
     def check_suspicious_content(self) -> CheckResult:
         #Tenta una sorta di analisi euristica del contenuto valutando le  parole sospette
         result = CheckResult("Suspicious Content", 0, 30)
+        
         subject = self.message.get('Subject', '').lower()
         body_text = self._get_body_text().lower()
         full_text = f"{subject} {body_text}"
         
-        foundkeywords = []
+        found_keywords = []
         for keyword in self.SUSPICIOUS_KEYWORDS:
             if keyword in full_text:
-                foundkeywords.append(keyword)
+                found_keywords.append(keyword)
         
-        if len(foundkeywords) >= 5:
+        if len(found_keywords) >= 5:
             result.add_reason(
-                f"{len(foundkeywords)} parole sospette trovate, un pò troppe (phishing probabile)",
+                f"🚨 {len(found_keywords)} parole sospette trovate, un pò troppe (phishing probabile)",
                 30
             )
-        elif len(foundkeywords) >= 3:
+        elif len(found_keywords) >= 3:
             result.add_reason(
-                f"{len(foundkeywords)} parole sospette trovate: {', '.join(foundkeywords[:5])}",
+                f"⚠️ {len(found_keywords)} parole sospette trovate: {', '.join(found_keywords[:5])}",
                 20
             )
-        elif len(foundkeywords) >= 1:
+        elif len(found_keywords) >= 1:
             result.add_reason(
-                f"Alcune parole sospette: {', '.join(foundkeywords)}",
+                f"⚠️ Alcune parole sospette: {', '.join(found_keywords)}",
                 10
             )
         else:
             result.add_reason("✓ Nessuna parola particolarmente sospetta", 0)
-        # Check x senso di urgenza estremo
+        
+        # Check senso di urgenza estremo
         urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso']
         urgency_count = sum(1 for word in urgency_words if word in full_text)
         if urgency_count >= 3:
-            result.add_reason("Senso di urgenza eccessivo nel messaggio", 10)
+            result.add_reason("⚠️ Senso di urgenza eccessivo nel messaggio", 10)
         
         return result
 
@@ -252,12 +260,12 @@ class EmailPhishingDetector:
             return
         
         print("\n" + "="*70)
-        print("ANALISI EMAIL PER RILEVAMENTO PHISHING")
+        print("🔍 ANALISI EMAIL PER RILEVAMENTO PHISHING")
         print("="*70)
-        print(f"\n File: {self.eml_path.name}")
-        print(f" Subject: {self.message.get('Subject', 'N/A')}")
-        print(f" From: {self.message.get('From', 'N/A')}")
-        print(f" Date: {self.message.get('Date', 'N/A')}\n")
+        print(f"\n📧 File: {self.eml_path.name}")
+        print(f"📨 Subject: {self.message.get('Subject', 'N/A')}")
+        print(f"👤 From: {self.message.get('From', 'N/A')}")
+        print(f"📅 Date: {self.message.get('Date', 'N/A')}\n")
         
         # Esegue i controlli
         self.results.append(self.check_spf())
@@ -275,7 +283,7 @@ class EmailPhishingDetector:
     def _print_results(self):
         # Stampa i risultati dell'analisi
         print("="*70)
-        print("RISULTATI DETTAGLIATI")
+        print("📊 RISULTATI DETTAGLIATI")
         print("="*70 + "\n")
         
         for result in self.results:
