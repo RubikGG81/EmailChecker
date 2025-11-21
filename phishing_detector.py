@@ -138,10 +138,47 @@ class EmailPhishingDetector:
         
         return result
 
-    
-    def analyze(self):
-        # Esegue tutti i controlli uno dopo l'altro TODO
+
+    def check_suspicious_content(self) -> CheckResult:
+        #Tenta una sorta di analisi euristica del contenuto valutando le  parole sospette
+        result = CheckResult("Suspicious Content", 0, 30)
+        subject = self.message.get('Subject', '').lower()
+        body_text = self._get_body_text().lower()
+        full_text = f"{subject} {body_text}"
         
+        found_keywords = []
+        for keyword in self.SUSPICIOUS_KEYWORDS:
+            if keyword in full_text:
+                found_keywords.append(keyword)
+        
+        if len(found_keywords) >= 5:
+            result.add_reason(
+                f"{len(found_keywords)} parole sospette trovate, un pò troppe (phishing probabile)",
+                30
+            )
+        elif len(found_keywords) >= 3:
+            result.add_reason(
+                f"{len(found_keywords)} parole sospette trovate: {', '.join(found_keywords[:5])}",
+                20
+            )
+        elif len(found_keywords) >= 1:
+            result.add_reason(
+                f"Alcune parole sospette: {', '.join(found_keywords)}",
+                10
+            )
+        else:
+            result.add_reason("✓ Nessuna parola particolarmente sospetta", 0)
+        # Check x senso di urgenza estremo
+        urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso']
+        urgency_count = sum(1 for word in urgency_words if word in full_text)
+        if urgency_count >= 3:
+            result.add_reason("Senso di urgenza eccessivo nel messaggio", 10)
+        
+        return result
+
+
+    def analyze(self):
+        # Eseguiamo tutti i controlli uno dopo l'altro TODO
               
         if not self.load_email():
             return
@@ -158,6 +195,7 @@ class EmailPhishingDetector:
         self.results.append(self.check_spf())
         self.results.append(self.check_dkim())
         self.results.append(self.check_dmarc())
+        self.results.append(self.check_suspicious_links())
         
         # Mostra risultati TODO
 
