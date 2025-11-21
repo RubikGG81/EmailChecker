@@ -188,7 +188,7 @@ class EmailPhishingDetector:
 
     def check_suspicious_content(self) -> CheckResult:
         #Tenta una sorta di analisi euristica del contenuto valutando le  parole sospette
-        result = CheckResult("Suspicious Content", 0, 30)
+        result = CheckResult("Suspicious Content", 0, 40)
         
         subject = self.message.get('Subject', '').lower()
         body_text = self._get_body_text().lower()
@@ -262,6 +262,10 @@ class EmailPhishingDetector:
         # Controllo link sospetti
         body_text = self._get_body_text()
         links = self._extract_links(body_text)
+        
+        if not links:
+            result.add_reason("ℹ️ Nessun link trovato", 0)
+            return result
         
         from_email = self._extract_email(self.message.get('From', ''))
         sender_domain = from_email.split('@')[-1].lower() if from_email else ''
@@ -382,7 +386,7 @@ class EmailPhishingDetector:
             verdict = "Email probabilmente legittima ma con qualche anomalia, è raccomandato l'uso del cervello"
         else:
             risk_level = "✅ RISCHIO MINIMO"
-            verdict = "L'email sembra legittima (ma ricordati che lo script non è infallibile...)"
+            verdict = "L'Email sembra legittima (ma ricordati che lo script non è infallibile...)"
         
         print(f"📈 Percentuale: {percentage:.1f}%")
         print(f"🚦 Livello di Rischio: {risk_level}")
