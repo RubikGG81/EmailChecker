@@ -202,7 +202,7 @@ class EmailPhishingDetector:
         elif 'dkim=pass' in auth_results:
             result.add_reason("✓   DKIM PASS - Firma valida", 0)
         elif 'dkim=none' in auth_results:
-            result.add_reason("⚠   Firma DKIM assente", 13)
+            result.add_reason("⚠   Firma DKIM assente", 15)
         else:
             result.add_reason("⚠   DKIM non verificabile", 13)
         
