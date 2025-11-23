@@ -65,7 +65,7 @@ class EmailPhishingDetector:
                 self.message = BytesParser(policy=policy.default).parse(f)
             return True
         except Exception as e:
-            print(f"❌❌ Errore nel caricamento del file ❌❌: {e}")
+            print(f"[X][X] Errore nel caricamento del file [X][X]: {e}")
             return False
     
     def _extract_email(self, header: str) -> str:
@@ -120,15 +120,15 @@ class EmailPhishingDetector:
         auth_results_lower = auth_results.lower()
         
         if not received_spf and 'spf=' not in auth_results_lower:
-            result.add_reason("⚠️   Record SPF non trovato negli header", 25)
+            result.add_reason("⚠   Record SPF non trovato negli header", 25)
         elif 'none' in received_spf_lower or 'spf=none' in auth_results_lower:
-            result.add_reason("🚨   SPF NONE - Il controllo non è implementato", 25)
+            result.add_reason("!!   SPF NONE - Il controllo non è implementato", 25)
         elif 'fail' in received_spf_lower or 'spf=fail' in auth_results_lower:
-            result.add_reason("🚨   SPF FAIL - Il mittente non è autorizzato", 30)
+            result.add_reason("!!   SPF FAIL - Il mittente non è autorizzato", 30)
         elif 'softfail' in received_spf_lower or 'spf=softfail' in auth_results_lower:
-            result.add_reason("⚠️   SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
+            result.add_reason("⚠   SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
         elif 'neutral' in received_spf_lower or 'spf=neutral' in auth_results_lower:
-            result.add_reason("⚠️   SPF NEUTRAL - Nessuna politica definita", 15)
+            result.add_reason("⚠   SPF NEUTRAL - Nessuna politica definita", 15)
         elif 'pass' in received_spf_lower or 'spf=pass' in auth_results_lower:
             result.add_reason("✓   SPF PASS - Mittente autorizzato", 0)
 
@@ -174,16 +174,16 @@ class EmailPhishingDetector:
                     # 2 domini non congruenti - punteggio negativo
                     domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
                     result.add_reason(
-                        f"🚨   SPF PASS ma 2 domini non congruenti - {domain_info}", 25)
+                        f"!!   SPF PASS ma 2 domini non congruenti - {domain_info}", 25)
                 elif len(unique_domains) > 2:
                     # 3 domini tutti diversi - punteggio negativo maggiore
                     domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
                     result.add_reason(
-                        f"🚨   SPF PASS ma diversi domini non congruenti - {domain_info}", 30)
+                        f"!!   SPF PASS ma diversi domini non congruenti - {domain_info}", 30)
                 else:
                     result.add_reason("✓   Domini congruenti tra SPF, MAIL FROM e From", 0)
         else:
-            result.add_reason("⚠️   SPF non verificabile,è consigliato un controllo manuale con altro tool dedicato", 23)
+            result.add_reason("⚠   SPF non verificabile,è consigliato un controllo manuale con altro tool dedicato", 23)
         
         return result
 
@@ -196,15 +196,15 @@ class EmailPhishingDetector:
         dkim_signature = self.message.get('DKIM-Signature', '')
         
         if not dkim_signature and 'dkim=' not in auth_results:
-            result.add_reason("⚠️   Firma DKIM assente", 15)
+            result.add_reason("⚠   Firma DKIM assente", 15)
         elif 'dkim=fail' in auth_results:
-            result.add_reason("🚨   DKIM FAIL - Firma non valida", 25)
+            result.add_reason("!!   DKIM FAIL - Firma non valida", 25)
         elif 'dkim=pass' in auth_results:
             result.add_reason("✓   DKIM PASS - Firma valida", 0)
         elif 'dkim=none' in auth_results:
-            result.add_reason("⚠️   Firma DKIM assente", 13)
+            result.add_reason("⚠   Firma DKIM assente", 13)
         else:
-            result.add_reason("⚠️   DKIM non verificabile", 13)
+            result.add_reason("⚠   DKIM non verificabile", 13)
         
         return result
 
@@ -216,15 +216,15 @@ class EmailPhishingDetector:
         auth_results = self.message.get('Authentication-Results', '').lower()
         
         if 'dmarc=' not in auth_results:
-            result.add_reason("⚠️   Risultato DMARC non trovato", 15)
+            result.add_reason("⚠   Risultato DMARC non trovato", 15)
         elif 'dmarc=fail' in auth_results:
-            result.add_reason("🚨   DMARC FAIL - Policy non rispettata", 25)
+            result.add_reason("!!   DMARC FAIL - Policy non rispettata", 25)
         elif 'dmarc=pass' in auth_results:
             result.add_reason("✓   DMARC PASS - Policy rispettata", 0)
         elif 'dmarc=none' in auth_results:
-            result.add_reason("⚠️   Risultato DMARC non trovato", 15)
+            result.add_reason("⚠   Risultato DMARC non trovato", 15)
         else:
-            result.add_reason("⚠️   DMARC non verificabile", 13)
+            result.add_reason("⚠   DMARC non verificabile", 13)
         
         return result
 
@@ -237,7 +237,7 @@ class EmailPhishingDetector:
         reply_to = self.message.get('Reply-To', '')
         
         if not reply_to:
-            result.add_reason("ℹ️  Reply-To non presente (normale)", 0)
+            result.add_reason("ℹ   Reply-To non presente (normale)", 0)
             return result
         
         # Estrai email da From e Reply-To
@@ -250,7 +250,7 @@ class EmailPhishingDetector:
             
             if from_domain != reply_domain:
                 result.add_reason(
-                    f"🚨  MISMATCH Reply-To: From={from_domain}, Reply-To={reply_domain}",
+                    f"!!  MISMATCH Reply-To: From={from_domain}, Reply-To={reply_domain}",
                     20
                 )
             else:
@@ -274,17 +274,17 @@ class EmailPhishingDetector:
         
         if len(found_keywords) >= 5:
             result.add_reason(
-                f"🚨  {len(found_keywords)} parole sospette trovate, un pò troppe (phishing probabile)",
+                f"!!  {len(found_keywords)} parole sospette trovate, un pò troppe (phishing probabile)",
                 30
             )
         elif len(found_keywords) >= 3:
             result.add_reason(
-                f"⚠️  {len(found_keywords)} parole sospette trovate: {', '.join(found_keywords[:5])}",
+                f"⚠  {len(found_keywords)} parole sospette trovate: {', '.join(found_keywords[:5])}",
                 20
             )
         elif len(found_keywords) >= 1:
             result.add_reason(
-                f"⚠️  Alcune parole sospette: {', '.join(found_keywords)}",
+                f"⚠  Alcune parole sospette: {', '.join(found_keywords)}",
                 10
             )
         else:
@@ -294,7 +294,7 @@ class EmailPhishingDetector:
         urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso']
         urgency_count = sum(1 for word in urgency_words if word in full_text)
         if urgency_count >= 3:
-            result.add_reason("⚠️  Senso di urgenza valutato come eccessivo nel messaggio", 10)
+            result.add_reason("⚠  Senso di urgenza valutato come eccessivo nel messaggio", 10)
         
         return result
 
@@ -314,7 +314,7 @@ class EmailPhishingDetector:
         
         if dangerousfound:
             result.add_reason(
-                f"🚨  {len(dangerousfound)} allegati pericolosi trovati: {', '.join(dangerousfound)}",
+                f"!!  {len(dangerousfound)} allegati pericolosi trovati: {', '.join(dangerousfound)}",
                 20 * len(dangerousfound)
             )
         else:
@@ -324,7 +324,7 @@ class EmailPhishingDetector:
             if has_attachments:
                 result.add_reason("✓  Allegati presenti ma non pericolosi", 0)
             else:
-                result.add_reason("ℹ️  Nessun allegato presente", 0)
+                result.add_reason("ℹ   Nessun allegato presente", 0)
         
         return result
 
@@ -337,7 +337,7 @@ class EmailPhishingDetector:
         links = self._extract_links(body_text)
         
         if not links:
-            result.add_reason("ℹ️  Nessun link trovato", 0)
+            result.add_reason("ℹ   Nessun link trovato", 0)
             return result
         
         from_email = self._extract_email(self.message.get('From', ''))
@@ -365,13 +365,13 @@ class EmailPhishingDetector:
         
         if raw_ip_links > 0:
             result.add_reason(
-                f"🚨  {raw_ip_links} link con indirizzo IP raw (molto sospetto)",
+                f"!!  {raw_ip_links} link con indirizzo IP raw (molto sospetto)",
                 20
             )
         
         if punycode_links > 0:
             result.add_reason(
-                f"⚠️  {punycode_links} link in Punycode (possibile IDN spoofing)",
+                f"⚠  {punycode_links} link in Punycode (possibile IDN spoofing)",
                 15
             )
         
@@ -379,12 +379,12 @@ class EmailPhishingDetector:
             ratio = mismatched_domains / len(links)
             if ratio > 0.8:
                 result.add_reason(
-                    f"🚨  {mismatched_domains}/{len(links)} link puntano a domini diversi dal mittente",
+                    f"!!  {mismatched_domains}/{len(links)} link puntano a domini diversi dal mittente",
                     15
                 )
             elif ratio > 0.5:
                 result.add_reason(
-                    f"⚠️  {mismatched_domains}/{len(links)} link puntano a domini esterni",
+                    f"⚠  {mismatched_domains}/{len(links)} link puntano a domini esterni",
                     10
                 )
         
@@ -412,12 +412,12 @@ class EmailPhishingDetector:
         print("*"*100)
         
         # Pausa per leggere il disclaimer
-        user_input = input("\n🔑 Premere SOLO INVIO per ACCETTARE e continuare con l'analisi (qualsiasi altro tasto seguito da INVIO per RIFIUTARE E TERMINARE LO SCRIPT): ")
+        user_input = input("\n[KEY] Premere SOLO INVIO per ACCETTARE e continuare con l'analisi (qualsiasi altro tasto seguito da INVIO per RIFIUTARE E TERMINARE LO SCRIPT): ")
         
         # Controlla se l'utente ha accettato il disclaimer
         if user_input.strip() != "":
-            print("\n❌ Disclaimer NON accettato. Programma terminato.")
-            print("👋 Arrivederci!")
+            print("\n[X] Disclaimer NON accettato. Programma terminato.")
+            print("Arrivederci!")
             return
         
         # Pulisce lo schermo dopo l'accettazione del disclaimer
@@ -428,12 +428,12 @@ class EmailPhishingDetector:
             return
         
         print("\n" + "="*70)
-        print("🔍 ANALISI EMAIL PER RILEVAMENTO PHISHING")
+        print("→ ANALISI EMAIL PER RILEVAMENTO PHISHING")
         print("="*70)
-        print(f"\n📧 File: {self.eml_path.name}")
-        print(f"📨 Subject: {self.message.get('Subject', 'N/A')}")
-        print(f"👤 From: {self.message.get('From', 'N/A')}")
-        print(f"📅 Date: {self.message.get('Date', 'N/A')}\n")
+        print(f"\n[EMAIL] File: {self.eml_path.name}")
+        print(f"[SUBJECT] Subject: {self.message.get('Subject', 'N/A')}")
+        print(f"[USER] From: {self.message.get('From', 'N/A')}")
+        print(f"[DATE] Date: {self.message.get('Date', 'N/A')}\n")
         
         # Esegue i controlli
         self.results.append(self.check_spf())
@@ -456,11 +456,11 @@ class EmailPhishingDetector:
     def _print_results(self):
         # Stampa i risultati dell'analisi
         print("="*70)
-        print("📊 RISULTATI DETTAGLIATI")
+        print("■ RISULTATI DETTAGLIATI")
         print("="*70 + "\n")
         
         for result in self.results:
-            print(f"🔸 {result.check_name}")
+            print(f"◆ {result.check_name}")
             print(f"   Score: {result.score}/{result.max_score}")
             for reason in result.reasons:
                 print(f"   {reason}")
@@ -469,31 +469,31 @@ class EmailPhishingDetector:
         # Aggiungere Calcolo Score finale
 
         print("="*70)
-        print("🎯 VALUTAZIONE FINALE ")
+        print("★ VALUTAZIONE FINALE ")
         print("="*70)
         print(f"\n⚡ Score Totale: {self.total_score}/{self.max_total_score}")
         
         percentage = (self.total_score / self.max_total_score * 100) if self.max_total_score > 0 else 0
         
         if percentage >= 70:
-            risk_level = "🔴 RISCHIO MOLTO ALTO"
+            risk_level = "● RISCHIO MOLTO ALTO"
             verdict = "PHISHING MOLTO PROBABILE - ELIMINA IMMEDIATAMENTE e/o UTILIZZA UN SOFTWARE DEDICATO PER CONFERMA"
         elif percentage >= 50:
-            risk_level = "🟠 RISCHIO ALTO"
+            risk_level = "● RISCHIO ALTO"
             verdict = "PHISHING PROBABILE - ESTREMA CAUTELA"
         elif percentage >= 30:
-            risk_level = "🟡 RISCHIO MEDIO"
+            risk_level = "● RISCHIO MEDIO"
             verdict = "EMAIL SOSPETTA - VERIFICARE ATTENTAMENTE"
         elif percentage >= 15:
-            risk_level = "🟢 RISCHIO BASSO"
+            risk_level = "● RISCHIO BASSO"
             verdict = "Email probabilmente legittima ma con qualche anomalia, è raccomandato l'uso del cervello"
         else:
-            risk_level = "✅ RISCHIO MINIMO"
+            risk_level = "○ RISCHIO MINIMO"
             verdict = "L'Email sembra legittima (ma ricordati che lo script non è infallibile...)"
         
-        print(f"📈 Percentuale: {percentage:.1f}%")
-        print(f"🚦 Livello di Rischio: {risk_level}")
-        print(f"⚖️  Verdetto: {verdict}")
+        print(f"→ Percentuale: {percentage:.1f}%")
+        print(f"→ Livello di Rischio: {risk_level}")
+        print(f"→ Verdetto: {verdict}")
         print("\n" + "="*70 + "\n")
   
 
