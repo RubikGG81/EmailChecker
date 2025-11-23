@@ -170,13 +170,13 @@ class EmailPhishingDetector:
             if len(domains_found) >= 2:
                 # Crea un set dei domini unici
                 unique_domains = set(d[1] for d in domains_found)
-                if 1 < len(unique_domains) < 3:
-                    # Domini non congruenti - punteggio negativo
+                if len(unique_domains) == 2:
+                    # 2 domini non congruenti - punteggio negativo
                     domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
                     result.add_reason(
                         f"🚨   SPF PASS ma 2 domini non congruenti - {domain_info}", 25)
                 elif len(unique_domains) > 2:
-                    # Domini non congruenti - punteggio negativo
+                    # 3 domini tutti diversi - punteggio negativo maggiore
                     domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
                     result.add_reason(
                         f"🚨   SPF PASS ma diversi domini non congruenti - {domain_info}", 30)
