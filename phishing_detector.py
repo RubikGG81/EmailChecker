@@ -42,11 +42,11 @@ class EmailPhishingDetector:
     SUSPICIOUS_KEYWORDS = [
         'urgent', 'urgente', 'immediate', 'immediato', 'verify', 'verifica',
         'suspend', 'sospeso', 'account', 'password', 'confirm', 'conferma',
-        'click here', 'clicca qui', 'update', 'aggiorna', 'security',
+        'click here', 'clicca qui', 'update', 'aggiorna', 'security', 'check', 'controlla', 'controllo',
         'sicurezza', 'alert', 'allerta', 'warning', 'avviso', 'expire',
         'scadenza', 'winner', 'vincitore', 'prize', 'premio', 'bank',
-        'banca', 'tax', 'tasse', 'refund', 'rimborso', 'invoice',
-        'fattura', 'payment', 'pagamento', 'deliver', 'consegna',
+        'banca', 'tax', 'tasse', 'refund', 'rimborso', 'invoice', 'change', 'cambiare', 'phishing',
+        'fattura', 'payment', 'pagamento', 'deliver', 'consegna', 'utente', 'username',
         'action required', 'azione richiesta', 'unauthorized', 'non autorizzato'
     ]
 
@@ -96,25 +96,94 @@ class EmailPhishingDetector:
         ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
         return bool(re.match(ip_pattern, hostname))
     
+    def _extract_domain_from_email(self, email_str: str) -> str:
+        # Estrae il dominio da un indirizzo email o da una stringa che contiene un dominio
+        if not email_str:
+            return ''
+        # Prima prova a estrarre un'email completa
+        email_match = re.search(r'[\w\.-]+@([\w\.-]+\.\w+)', email_str)
+        if email_match:
+            return email_match.group(1).lower()
+        # Se non c'è un'email, prova a estrarre un dominio diretto
+        domain_match = re.search(r'([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}', email_str.lower())
+        if domain_match:
+            return domain_match.group(0).lower()
+        return ''
+
     def check_spf(self) -> CheckResult:
         # Controlla la validità SPF"""
         result = CheckResult("SPF Validation", 0, 30)
         
-        received_spf = self.message.get('Received-SPF', '').lower()
-        auth_results = self.message.get('Authentication-Results', '').lower()
+        received_spf = self.message.get('Received-SPF', '')
+        received_spf_lower = received_spf.lower()
+        auth_results = self.message.get('Authentication-Results', '')
+        auth_results_lower = auth_results.lower()
         
-        if not received_spf and 'spf=' not in auth_results:
-            result.add_reason("⚠️  Record SPF non trovato negli header", 10)
-        elif 'fail' in received_spf or 'spf=fail' in auth_results:
-            result.add_reason("🚨  SPF FAIL - Il mittente non è autorizzato", 30)
-        elif 'softfail' in received_spf or 'spf=softfail' in auth_results:
-            result.add_reason("⚠️  SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
-        elif 'neutral' in received_spf or 'spf=neutral' in auth_results:
-            result.add_reason("⚠️  SPF NEUTRAL - Nessuna politica definita", 15)
-        elif 'pass' in received_spf or 'spf=pass' in auth_results:
-            result.add_reason("✓  SPF PASS - Mittente autorizzato", 0)
+        if not received_spf and 'spf=' not in auth_results_lower:
+            result.add_reason("⚠️   Record SPF non trovato negli header", 25)
+        elif 'none' in received_spf_lower or 'spf=none' in auth_results_lower:
+            result.add_reason("🚨   SPF NONE - Il controllo non è implementato", 25)
+        elif 'fail' in received_spf_lower or 'spf=fail' in auth_results_lower:
+            result.add_reason("🚨   SPF FAIL - Il mittente non è autorizzato", 30)
+        elif 'softfail' in received_spf_lower or 'spf=softfail' in auth_results_lower:
+            result.add_reason("⚠️   SPF SOFTFAIL - Mittente potenzialmente non autorizzato", 20)
+        elif 'neutral' in received_spf_lower or 'spf=neutral' in auth_results_lower:
+            result.add_reason("⚠️   SPF NEUTRAL - Nessuna politica definita", 15)
+        elif 'pass' in received_spf_lower or 'spf=pass' in auth_results_lower:
+            result.add_reason("✓   SPF PASS - Mittente autorizzato", 0)
+
+            # Controllo aggiuntivo: verifica coerenza domini quando SPF=pass
+            spf_domain = ''
+            mail_from_domain = ''
+            from_domain = ''
+            
+            # Estrai dominio che ha superato l'SPF
+            # Da Received-SPF: "domain of xxx" o simile
+            spf_domain_match = re.search(r'domain\s+of\s+([\w\.-]+\.\w+)', received_spf, re.IGNORECASE)
+            if spf_domain_match:
+                spf_domain = spf_domain_match.group(1).lower()
+            
+            # Estrai MAIL FROM (smtp.mailfrom) da Authentication-Results
+            mail_from_match = re.search(r'smtp\.mailfrom=([\w\.-]+\.\w+)', auth_results, re.IGNORECASE)
+            if mail_from_match:
+                mail_from_domain = mail_from_match.group(1).lower()
+            else:
+                # Testo Return-Path se disponibile
+                return_path = self.message.get('Return-Path', '')
+                if return_path:
+                    mail_from_domain = self._extract_domain_from_email(return_path)
+            
+            # Estrai dominio dal From header (mittente visualizzato))
+            from_header = self.message.get('From', '')
+            if from_header:
+                from_domain = self._extract_domain_from_email(from_header)
+            
+            # Verifica coerenza dei domini
+            domains_found = []
+            if spf_domain:
+                domains_found.append(('SPF', spf_domain))
+            if mail_from_domain:
+                domains_found.append(('MAIL FROM', mail_from_domain))
+            if from_domain:
+                domains_found.append(('From', from_domain))
+            
+            if len(domains_found) >= 2:
+                # Crea un set dei domini unici
+                unique_domains = set(d[1] for d in domains_found)
+                if 1 < len(unique_domains) < 3:
+                    # Domini non congruenti - punteggio negativo
+                    domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
+                    result.add_reason(
+                        f"🚨   SPF PASS ma 2 domini non congruenti - {domain_info}", 25)
+                elif len(unique_domains) > 2:
+                    # Domini non congruenti - punteggio negativo
+                    domain_info = ', '.join([f"{name}: {domain}" for name, domain in domains_found])
+                    result.add_reason(
+                        f"🚨   SPF PASS ma diversi domini non congruenti - {domain_info}", 30)
+                else:
+                    result.add_reason("✓   Domini congruenti tra SPF, MAIL FROM e From", 0)
         else:
-            result.add_reason("⚠️  SPF non verificabile,è consigliato un controllo manuale con altro tool dedicato", 5)
+            result.add_reason("⚠️   SPF non verificabile,è consigliato un controllo manuale con altro tool dedicato", 23)
         
         return result
 
@@ -127,13 +196,15 @@ class EmailPhishingDetector:
         dkim_signature = self.message.get('DKIM-Signature', '')
         
         if not dkim_signature and 'dkim=' not in auth_results:
-            result.add_reason("⚠️  Firma DKIM assente", 15)
+            result.add_reason("⚠️   Firma DKIM assente", 15)
         elif 'dkim=fail' in auth_results:
-            result.add_reason("🚨  DKIM FAIL - Firma non valida", 25)
+            result.add_reason("🚨   DKIM FAIL - Firma non valida", 25)
         elif 'dkim=pass' in auth_results:
-            result.add_reason("✓  DKIM PASS - Firma valida", 0)
+            result.add_reason("✓   DKIM PASS - Firma valida", 0)
+        elif 'dkim=none' in auth_results:
+            result.add_reason("⚠️   Firma DKIM assente", 13)
         else:
-            result.add_reason("⚠️  DKIM presente ma non verificabile", 10)
+            result.add_reason("⚠️   DKIM non verificabile", 13)
         
         return result
 
@@ -145,13 +216,15 @@ class EmailPhishingDetector:
         auth_results = self.message.get('Authentication-Results', '').lower()
         
         if 'dmarc=' not in auth_results:
-            result.add_reason("⚠️  Risultato DMARC non trovato", 15)
+            result.add_reason("⚠️   Risultato DMARC non trovato", 15)
         elif 'dmarc=fail' in auth_results:
-            result.add_reason("🚨  DMARC FAIL - Policy non rispettata", 25)
+            result.add_reason("🚨   DMARC FAIL - Policy non rispettata", 25)
         elif 'dmarc=pass' in auth_results:
-            result.add_reason("✓  DMARC PASS - Policy rispettata", 0)
+            result.add_reason("✓   DMARC PASS - Policy rispettata", 0)
+        elif 'dmarc=none' in auth_results:
+            result.add_reason("⚠️   Risultato DMARC non trovato", 15)
         else:
-            result.add_reason("⚠️  DMARC non verificabile", 10)
+            result.add_reason("⚠️   DMARC non verificabile", 13)
         
         return result
 
