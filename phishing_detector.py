@@ -475,20 +475,28 @@ class EmailPhishingDetector:
         
         percentage = (self.total_score / self.max_total_score * 100) if self.max_total_score > 0 else 0
         
+        # Codici colore ANSI
+        RED = '\033[91m'      # Rosso brillante
+        ORANGE = '\033[31m'   # Rosso standard
+        YELLOW = '\033[93m'   # Giallo brillante
+        YELLOW_LIGHT = '\033[33m'  # Giallo standard
+        GREEN = '\033[92m'    # Verde brillante
+        RESET = '\033[0m'     # Reset colore
+        
         if percentage >= 70:
-            risk_level = "● RISCHIO MOLTO ALTO"
+            risk_level = f"{RED}● RISCHIO MOLTO ALTO{RESET}"
             verdict = "PHISHING MOLTO PROBABILE - ELIMINA IMMEDIATAMENTE e/o UTILIZZA UN SOFTWARE DEDICATO PER CONFERMA"
         elif percentage >= 50:
-            risk_level = "● RISCHIO ALTO"
+            risk_level = f"{ORANGE}● RISCHIO ALTO{RESET}"
             verdict = "PHISHING PROBABILE - ESTREMA CAUTELA"
         elif percentage >= 30:
-            risk_level = "● RISCHIO MEDIO"
+            risk_level = f"{YELLOW}● RISCHIO MEDIO{RESET}"
             verdict = "EMAIL SOSPETTA - VERIFICARE ATTENTAMENTE"
         elif percentage >= 15:
-            risk_level = "● RISCHIO BASSO"
+            risk_level = f"{YELLOW_LIGHT}● RISCHIO BASSO{RESET}"
             verdict = "Email probabilmente legittima ma con qualche anomalia, è raccomandato l'uso del cervello"
         else:
-            risk_level = "○ RISCHIO MINIMO"
+            risk_level = f"{GREEN}● RISCHIO MINIMO{RESET}"
             verdict = "L'Email sembra legittima (ma ricordati che lo script non è infallibile...)"
         
         print(f"→ Percentuale: {percentage:.1f}%")
