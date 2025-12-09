@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import os
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+import base64
 
 
 @dataclass
@@ -37,6 +38,61 @@ class EmailPhishingDetector:
         '.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js',
         '.jar', '.zip', '.rar', '.iso', '.msi', '.dll', '.hta', '.reg',
         '.ps1', '.psm1', '.lnk', '.docm', '.xlsm', '.pptm'
+    }
+    
+    # Mapping estensioni comuni -> MIME types
+    EXTENSION_MIME_MAP = {
+        '.exe': ['application/x-msdownload', 'application/octet-stream'],
+        '.bat': ['application/x-msdos-program', 'text/plain'],
+        '.cmd': ['application/x-msdos-program', 'text/plain'],
+        '.com': ['application/x-msdos-program'],
+        '.js': ['application/javascript', 'text/javascript', 'application/x-javascript'],
+        '.vbs': ['application/x-vbs', 'text/plain'],
+        '.jar': ['application/java-archive', 'application/x-java-archive'],
+        '.zip': ['application/zip', 'application/x-zip-compressed'],
+        '.rar': ['application/x-rar-compressed', 'application/vnd.rar'],
+        '.pdf': ['application/pdf'],
+        '.doc': ['application/msword'],
+        '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        '.xls': ['application/vnd.ms-excel'],
+        '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        '.ppt': ['application/vnd.ms-powerpoint'],
+        '.pptx': ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        '.txt': ['text/plain'],
+        '.html': ['text/html'],
+        '.htm': ['text/html'],
+        '.jpg': ['image/jpeg'],
+        '.jpeg': ['image/jpeg'],
+        '.png': ['image/png'],
+        '.gif': ['image/gif'],
+        '.bmp': ['image/bmp'],
+        '.mp3': ['audio/mpeg'],
+        '.mp4': ['video/mp4'],
+        '.iso': ['application/x-iso9660-image'],
+        '.dll': ['application/x-msdownload', 'application/octet-stream'],
+        '.ps1': ['text/plain', 'application/x-powershell'],
+        '.lnk': ['application/x-ms-shortcut'],
+    }
+    
+    # Magic bytes (file signatures) -> MIME types
+    MAGIC_BYTES_MIME_MAP = {
+        b'%PDF': 'application/pdf',
+        b'PK\x03\x04': 'application/zip',  # ZIP, DOCX, XLSX, PPTX
+        b'PK\x05\x06': 'application/zip',  # ZIP (empty)
+        b'PK\x07\x08': 'application/zip',  # ZIP (spanned)
+        b'Rar!\x1a\x07': 'application/x-rar-compressed',
+        b'Rar!\x1a\x07\x00': 'application/x-rar-compressed',
+        b'MZ': 'application/x-msdownload',  # EXE, DLL
+        b'\x89PNG\r\n\x1a\n': 'image/png',
+        b'\xff\xd8\xff': 'image/jpeg',
+        b'GIF87a': 'image/gif',
+        b'GIF89a': 'image/gif',
+        b'BM': 'image/bmp',
+        b'\x00\x00\x01\x00': 'image/x-icon',
+        b'<!DOCTYPE HTML': 'text/html',
+        b'<html': 'text/html',
+        b'<HTML': 'text/html',
+        b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1': 'application/msword',  # DOC, XLS, PPT (OLE)
     }
 
     
@@ -632,6 +688,192 @@ class EmailPhishingDetector:
         return result
 
 
+    def _detect_file_type_from_magic_bytes(self, file_data: bytes) -> str:
+        # Rileva il tipo di file dai magic bytes (primi byte del file)
+        if not file_data or len(file_data) < 4:
+            return None
+        
+        # Controlla i magic bytes più comuni
+        for magic_bytes, mime_type in self.MAGIC_BYTES_MIME_MAP.items():
+            if file_data.startswith(magic_bytes):
+                return mime_type
+        
+        # Controlli aggiuntivi per pattern più complessi
+        # JPEG: inizia con FF D8 FF
+        if len(file_data) >= 3 and file_data[:3] == b'\xff\xd8\xff':
+            return 'image/jpeg'
+        
+        # PNG: inizia con 89 50 4E 47 0D 0A 1A 0A
+        if len(file_data) >= 8 and file_data[:8] == b'\x89PNG\r\n\x1a\n':
+            return 'image/png'
+        
+        # GIF: inizia con GIF87a o GIF89a
+        if len(file_data) >= 6:
+            if file_data[:6] == b'GIF87a' or file_data[:6] == b'GIF89a':
+                return 'image/gif'
+        
+        # ZIP (e Office files): inizia con PK
+        if len(file_data) >= 2 and file_data[:2] == b'PK':
+            return 'application/zip'
+        
+        # PDF: inizia con %PDF
+        if len(file_data) >= 4 and file_data[:4] == b'%PDF':
+            return 'application/pdf'
+        
+        # EXE/DLL: inizia con MZ
+        if len(file_data) >= 2 and file_data[:2] == b'MZ':
+            return 'application/x-msdownload'
+        
+        # RAR: inizia con Rar!
+        if len(file_data) >= 4 and file_data[:4] == b'Rar!':
+            return 'application/x-rar-compressed'
+        
+        # BMP: inizia con BM
+        if len(file_data) >= 2 and file_data[:2] == b'BM':
+            return 'image/bmp'
+        
+        # HTML: inizia con <!DOCTYPE o <html
+        if len(file_data) >= 10:
+            file_start = file_data[:50].lower()
+            if b'<!doctype html' in file_start or b'<html' in file_start:
+                return 'text/html'
+        
+        return None
+
+    def check_mime_extension_mismatch(self) -> CheckResult:
+        # Controlla se il MIME type è coerente con l'estensione del file allegato e con i magic bytes
+        result = CheckResult("MIME-Extension Mismatch", 0, 50)
+        
+        mismatches = []
+        magic_bytes_mismatches = []
+        attachments_found = False
+        
+        for part in self.message.walk():
+            filename = part.get_filename()
+            if filename:
+                attachments_found = True
+                file_ext = Path(filename).suffix.lower()
+                content_type = part.get_content_type().lower()
+                
+                # Prova a decodificare il contenuto per controllare i magic bytes
+                file_data = None
+                try:
+                    payload = part.get_payload(decode=True)
+                    if payload and len(payload) > 0:
+                        file_data = payload
+                except Exception:
+                    # Se non riesce a decodificare, prova base64
+                    try:
+                        payload = part.get_payload()
+                        if payload and isinstance(payload, str):
+                            # Prova a decodificare base64
+                            file_data = base64.b64decode(payload, validate=False)
+                    except Exception:
+                        pass
+                
+                # Controllo magic bytes se disponibili
+                if file_data:
+                    detected_mime = self._detect_file_type_from_magic_bytes(file_data)
+                    if detected_mime and detected_mime != content_type:
+                        # Mismatch tra magic bytes e MIME dichiarato
+                        magic_bytes_mismatches.append({
+                            'filename': filename,
+                            'declared_mime': content_type,
+                            'detected_mime': detected_mime,
+                            'extension': file_ext
+                        })
+                
+                if file_ext:
+                    # Verifica se l'estensione ha un MIME type atteso
+                    expected_mimes = self.EXTENSION_MIME_MAP.get(file_ext, [])
+                    
+                    if expected_mimes:
+                        # Se ci sono MIME types attesi per questa estensione
+                        if content_type not in expected_mimes:
+                            # Mismatch trovato
+                            mismatches.append({
+                                'filename': filename,
+                                'extension': file_ext,
+                                'expected_mimes': expected_mimes,
+                                'actual_mime': content_type
+                            })
+                    else:
+                        # Estensione non nel mapping - verifica se il MIME è generico/sospetto
+                        # Se il MIME è "application/octet-stream" o generico, potrebbe essere sospetto
+                        if content_type in ['application/octet-stream', 'application/x-download']:
+                            # MIME generico per estensione non mappata - leggermente sospetto
+                            mismatches.append({
+                                'filename': filename,
+                                'extension': file_ext,
+                                'expected_mimes': ['unknown'],
+                                'actual_mime': content_type,
+                                'severity': 'low'
+                            })
+        
+        if not attachments_found:
+            result.add_reason("ℹ   Nessun allegato presente", 0)
+        else:
+            # Valuta prima i mismatch dei magic bytes (più gravi)
+            if magic_bytes_mismatches:
+                mismatch_info = []
+                for m in magic_bytes_mismatches[:3]:  # Mostra solo i primi 3
+                    info = f"{m['filename']} (MIME dichiarato: {m['declared_mime']}, MIME reale: {m['detected_mime']})"
+                    mismatch_info.append(info)
+                
+                if len(magic_bytes_mismatches) > 3:
+                    mismatch_info.append(f"... (+{len(magic_bytes_mismatches)-3} altri)")
+                
+                result.add_reason(
+                    f"!!  {len(magic_bytes_mismatches)} mismatch MAGIC BYTES-MIME trovati: {', '.join(mismatch_info)}",
+                    min(50, 30 + (len(magic_bytes_mismatches) * 10))
+                )
+            
+            # Poi valuta i mismatch estensione-MIME
+            if mismatches:
+                # Calcola punteggio basato sul numero e gravità dei mismatch
+                high_severity = [m for m in mismatches if m.get('severity') != 'low']
+                low_severity = [m for m in mismatches if m.get('severity') == 'low']
+                
+                if len(high_severity) > 0:
+                    # Mismatch gravi trovati
+                    mismatch_info = []
+                    for m in high_severity[:3]:  # Mostra solo i primi 3
+                        info = f"{m['filename']} (ext: {m['extension']}, MIME: {m['actual_mime']})"
+                        mismatch_info.append(info)
+                    
+                    if len(high_severity) > 3:
+                        mismatch_info.append(f"... (+{len(high_severity)-3} altri)")
+                    
+                    # Se non ci sono già mismatch magic bytes, assegna punteggio
+                    if not magic_bytes_mismatches:
+                        result.add_reason(
+                            f"!!  {len(high_severity)} mismatch MIME-estensione trovati: {', '.join(mismatch_info)}",
+                            min(40, 20 + (len(high_severity) * 10))
+                        )
+                    else:
+                        result.add_reason(
+                            f"⚠  {len(high_severity)} mismatch MIME-estensione trovati: {', '.join(mismatch_info)}",
+                            0
+                        )
+                    
+                    if len(low_severity) > 0:
+                        result.add_reason(
+                            f"⚠  {len(low_severity)} allegati con MIME generico per estensione non mappata",
+                            0
+                        )
+                elif len(low_severity) > 0:
+                    # Solo mismatch a bassa severità
+                    if not magic_bytes_mismatches:
+                        result.add_reason(
+                            f"⚠  {len(low_severity)} allegati con MIME generico (possibile mascheramento)",
+                            15
+                        )
+            elif not magic_bytes_mismatches:
+                result.add_reason("✓ Tutti gli allegati hanno MIME type coerente con l'estensione e magic bytes", 0)
+        
+        return result
+
+
     def check_dangerous_attachments(self) -> CheckResult:
         # Controlla allegati pericolosi andando a verificare le estensioni piu pericolose
         result = CheckResult("Dangerous Attachments", 0, 60)
@@ -783,6 +1025,7 @@ class EmailPhishingDetector:
         self.results.append(self.check_bcl_score())
         self.results.append(self.check_suspicious_content())
         self.results.append(self.check_suspicious_links())
+        self.results.append(self.check_mime_extension_mismatch())
         self.results.append(self.check_dangerous_attachments())
 
         # Calcola score totale
