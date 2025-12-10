@@ -170,7 +170,7 @@ class EmailPhishingDetector:
 
     def check_spf(self) -> CheckResult:
         # Controlla la validità SPF"""
-        result = CheckResult("SPF Validation", 0, 50)
+        result = CheckResult("Validazione SPF", 0, 50)
         
         received_spf = self.message.get('Received-SPF', '')
         received_spf_lower = received_spf.lower()
@@ -248,7 +248,7 @@ class EmailPhishingDetector:
 
     def check_dkim(self) -> CheckResult:
         # Controlla la firma DKIM
-        result = CheckResult("DKIM Signature", 0, 50)
+        result = CheckResult("Firma DKIM", 0, 50)
         
         auth_results = self.message.get('Authentication-Results', '').lower()
         dkim_signature = self.message.get('DKIM-Signature', '')
@@ -319,7 +319,7 @@ class EmailPhishingDetector:
 
     def check_date_inconsistencies(self) -> CheckResult:
         # Controlla eventuali incongruenze nella data delle email
-        result = CheckResult("Date Inconsistencies", 0, 30)
+        result = CheckResult("Inconsistenze nelle date", 0, 30)
         
         date_header = self.message.get('Date', '')
         
@@ -396,7 +396,7 @@ class EmailPhishingDetector:
                 # Se ci sono date nei Received molto diverse dalla Date header, è sospetto
                 if received_dates and len(received_dates) > 0:
                     # Nota: questo è un controllo base, potrebbe essere migliorato
-                    result.add_reason("ℹ   Date nei Received headers presenti (verifica manuale consigliata)", 0)
+                    result.add_reason("ℹ   Date nei \"Received headers\" presenti (verifica manuale consigliata)", 0)
             except:
                 pass
         
@@ -405,7 +405,7 @@ class EmailPhishingDetector:
 
     def check_hidden_bcc(self) -> CheckResult:
         # Controlla se è presente un BCC nascosto e pattern sospetti di invio massivo
-        result = CheckResult("Hidden BCC Check", 0, 70)
+        result = CheckResult("Controllo BCC Nascosti", 0, 70)
         
         bcc = self.message.get('Bcc', '')
         to_header = self.message.get('To', '').lower()
@@ -529,7 +529,7 @@ class EmailPhishingDetector:
 
     def check_multiple_ara(self) -> CheckResult:
         # Controlla se sono presenti molteplici codici ARA (Authentication-Results-Action)
-        result = CheckResult("Multiple ARA Codes", 0, 60)
+        result = CheckResult("Codici ARA multipli", 0, 60)
         
         # Cerca tutti gli header Authentication-Results
         auth_results_headers = []
@@ -657,7 +657,7 @@ class EmailPhishingDetector:
 
     def check_suspicious_content(self) -> CheckResult:
         #Tenta una sorta di analisi euristica del contenuto valutando le  parole sospette
-        result = CheckResult("Suspicious Content", 0, 60)
+        result = CheckResult("Contenuto sospetto", 0, 60)
         
         subject = self.message.get('Subject', '').lower()
         body_text = self._get_body_text().lower()
@@ -687,7 +687,7 @@ class EmailPhishingDetector:
             result.add_reason("✓ Nessuna parola particolarmente sospetta", 0)
         
         # Check senso di urgenza estremo
-        urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso']
+        urgency_words = ['urgent', 'urgente', 'immediate', 'immediato', 'now', 'adesso', 'today', 'oggi', 'warned', 'avviso', 'avvisato']
         urgency_count = sum(1 for word in urgency_words if word in full_text)
         if urgency_count >= 3:
             result.add_reason("⚠  Senso di urgenza valutato come eccessivo nel messaggio", 15)
@@ -749,7 +749,7 @@ class EmailPhishingDetector:
 
     def check_mime_extension_mismatch(self) -> CheckResult:
         # Controlla se il MIME type è coerente con l'estensione del file allegato e con i magic bytes
-        result = CheckResult("MIME-Extension Mismatch", 0, 50)
+        result = CheckResult("MIME/Estensioni allegati Mismatch", 0, 50)
         
         mismatches = []
         magic_bytes_mismatches = []
@@ -865,7 +865,7 @@ class EmailPhishingDetector:
                     
                     if len(low_severity) > 0:
                         result.add_reason(
-                            f"⚠  {len(low_severity)} allegati con MIME generico per estensione non mappata",
+                            f"⚠  {len(low_severity)} allegati con MIME generico per estensione non mappata (sono mappati solo i piu comuni e pericolosi)",
                             0
                         )
                 elif len(low_severity) > 0:
@@ -883,7 +883,7 @@ class EmailPhishingDetector:
 
     def check_dangerous_attachments(self) -> CheckResult:
         # Controlla allegati pericolosi andando a verificare le estensioni piu pericolose
-        result = CheckResult("Dangerous Attachments", 0, 60)
+        result = CheckResult("Allegati potenzialmente pericolosi", 0, 60)
         
         dangerousfound = []
         
@@ -916,7 +916,7 @@ class EmailPhishingDetector:
 
     def check_suspicious_links(self) -> CheckResult:
         # Analizza i link sospetti nel body
-        result = CheckResult("Suspicious Links", 0, 60)
+        result = CheckResult("Link sospetti", 0, 60)
         # Controllo link sospetti
         body_text = self._get_body_text()
         links = self._extract_links(body_text)
