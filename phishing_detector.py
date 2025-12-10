@@ -481,7 +481,14 @@ class EmailPhishingDetector:
                     scl_value = int(x_scl.strip())
                 except ValueError:
                     pass
-        
+            else:
+                ms_exc_scl = self.message.get('X-MS-Exchange-Organization-SCL', '')
+                if ms_exc_scl:
+                    try:
+                        scl_value = int(ms_exc_scl.strip())
+                    except ValueError:
+                        pass        
+                
         if scl_value is None:
             result.add_reason("ℹ   SCL score non trovato negli header", 0)
         else:
